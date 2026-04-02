@@ -1,19 +1,7 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Wattbike</title>
-  <link rel="manifest" href="./manifest.json">
-  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  
-  </head>
-<body>
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycbyYB5tIIt046ejx-7AX804Zdox2uN2aJqvnboPIFMB5RWgAMJag7pZL-0h6lJkpLe9oOg/exec";
 
-  <script>
-const API_URL = "YOUR_WEB_APP_URL_HERE"; // <--- PASTE YOUR GOOGLE DEPLOYMENT URL HERE
-
+// 1. Security Check: Get or prompt for password
 let apiToken = localStorage.getItem('wb_token');
 if (!apiToken) {
   apiToken = prompt("Enter your Wattbike App passcode:");
@@ -24,6 +12,7 @@ if (!apiToken) {
   }
 }
 
+// Append token to the URL for all requests
 const AUTH_URL = API_URL + "?token=" + encodeURIComponent(apiToken);
 
 var currentRow = null;
@@ -33,16 +22,16 @@ var offlineQueue = JSON.parse(localStorage.getItem('wb_syncQueue') || '[]');
 window.addEventListener('load', function() {
   registerServiceWorker();
   
+  // Instantly load cached UI
   const cachedData = localStorage.getItem('wb_data');
   if (cachedData) {
     renderAll(JSON.parse(cachedData));
   } else {
-    // Note: Ensure you have an element with ID 'analysisContent' or handle this loading state appropriately
-    if(document.getElementById('analysisContent')) {
-      document.getElementById('analysisContent').innerHTML = '<div class="no-data">Syncing initial data...</div>';
-    }
+    var el = document.getElementById('analysisContent');
+    if(el) el.innerHTML = '<div class="no-data">Syncing initial data...</div>';
   }
 
+  // Fetch fresh data in background if online
   if (navigator.onLine && apiToken) {
     syncApp();
   }
@@ -51,6 +40,7 @@ window.addEventListener('load', function() {
 window.addEventListener('online', syncApp);
 
 async function syncApp() {
+  // Push saved workouts first
   if (offlineQueue.length > 0) {
     try {
       const res = await fetch(AUTH_URL, {
@@ -71,6 +61,7 @@ async function syncApp() {
     }
   }
 
+  // Pull latest data
   try {
     const res = await fetch(AUTH_URL);
     const data = await res.json();
@@ -113,6 +104,7 @@ function saveWorkout() {
     notes: document.getElementById('notesInput').value
   };
 
+  // Add to local offline queue
   offlineQueue.push(workoutData);
   localStorage.setItem('wb_syncQueue', JSON.stringify(offlineQueue));
   
@@ -126,7 +118,7 @@ function saveWorkout() {
 function registerServiceWorker() {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('./sw.js')
-      .then(function(reg) { console.log('SW registered!'); })
+      .then(function() { console.log('SW registered!'); })
       .catch(function(err) { console.log('SW registration failed', err); });
   }
 }
@@ -144,10 +136,13 @@ function handleToday(data) {
   if(loadScreen) loadScreen.style.display = 'none';
   
   if (data.error) {
-    document.getElementById('errorScreen').style.display = 'flex';
-    document.getElementById('errorMsg').textContent = data.error;
+    var errorScreen = document.getElementById('errorScreen');
+    if(errorScreen) errorScreen.style.display = 'flex';
+    var errorMsg = document.getElementById('errorMsg');
+    if(errorMsg) errorMsg.textContent = data.error;
     return;
   }
+  
   currentRow = data.rowNum;
   document.getElementById('dayName').textContent    = data.dayOfWeek.toUpperCase();
   document.getElementById('dateDisplay').textContent = data.date;
@@ -167,6 +162,7 @@ function handleToday(data) {
 
 function setMetric(id, val) {
   var el = document.getElementById(id);
+  if(!el) return;
   if (val === '' || val === null || val === undefined) {
     el.innerHTML = '<span class="mval empty">—</span>';
   } else {
@@ -226,10 +222,6 @@ function renderAnalytics(result) {
   var ms30 = now - 30*864e5;
   var ms7  = now - 7*864e5;
 
-  var currentMonday = getMondayMs(now);
-  var minChartAxis = currentMonday - (11 * 7 * 864e5); 
-  var maxChartAxis = currentMonday + (7 * 864e5);      
-
   document.getElementById('rideCount').textContent = n + ' rides';
   var first = new Date(sessions[0].dateMs);
   var last  = new Date(sessions[n-1].dateMs);
@@ -243,10 +235,7 @@ function renderAnalytics(result) {
       '<tr><td>Max Weekly Load</td><td><span class="pb-num" id="pbKjAll">—</span></td><td><span class="pb-num" id="pbKj90">—</span></td><td><span class="pb-num" id="pbKj30">—</span></td><td><span class="pb-num" id="pbKj7">—</span></td></tr>'+
     '</table></div>'+
     
-    '<div><div class="sec-title">Efficiency Factor (EF) <span class="sec-sub">Watts per heartbeat · last 12 weeks</span></div>'+
-    '<div class="chart-card"><div class="chart-wrap"><canvas id="effCanvas"></canvas></div></div></div>'+
-    
-    '<div><div class="sec-title">Weekly Load <span class="sec-sub">hrs vs kJ · last 12 weeks</span></div>'+
+    '<div><div class="sec-title">Weekly Load <span class="sec-sub">duration (hrs) vs work done (kJ)</span></div>'+
     '<div class="chart-card"><div class="chart-wrap"><canvas id="volCanvas"></canvas></div></div></div>'+
     
     '<div><div class="sec-title">Monthly Load <span class="sec-sub">last 12 months (hrs vs kJ)</span></div>'+
@@ -258,12 +247,14 @@ function renderAnalytics(result) {
     '<div><div class="sec-title">Ride Consistency <span class="sec-sub">work done (kJ) last 26 weeks</span></div>'+
     '<div class="heatmap-card" id="heatmap"></div></div>';
 
+  // PB filter - Avg Power for rides strictly > 30 mins
   var avgSessions  = sessions.filter(function(s){return s.avgWatts>0 && s.durationMins > 30});
   setPB('pbAvgAll',  maxOf(avgSessions,'avgWatts'),'w');
   setPB('pbAvg90',   maxOf(avgSessions.filter(function(s){return s.dateMs>=ms90}),'avgWatts'),'w');
   setPB('pbAvg30',   maxOf(avgSessions.filter(function(s){return s.dateMs>=ms30}),'avgWatts'),'w');
   setPB('pbAvg7',    maxOf(avgSessions.filter(function(s){return s.dateMs>=ms7}), 'avgWatts'),'w');
 
+  // PB filter - Max Weekly Load
   var weekMapPB = {};
   sessions.forEach(function(s){
     var mon = getMondayMs(s.dateMs);
@@ -272,72 +263,41 @@ function renderAnalytics(result) {
   });
   var pbWeeks = Object.values(weekMapPB);
   
+  // Historical PBs use max calendar week load
   setPB('pbKjAll', maxOf(pbWeeks, 'kj'), ' kJ');
   setPB('pbKj90',  maxOf(pbWeeks.filter(function(w){return w.ms>=ms90}), 'kj'), ' kJ');
   setPB('pbKj30',  maxOf(pbWeeks.filter(function(w){return w.ms>=ms30}), 'kj'), ' kJ');
   
+  // 7-day PB uses a rolling 7-day sum
   var rolling7DayKj = sessions.filter(function(s){return s.dateMs >= ms7}).reduce(function(acc, s){return acc + (s.workKJ || 0);}, 0);
   setPB('pbKj7', rolling7DayKj, ' kJ');
 
-  var efSessions = sessions.filter(function(s){return s.avgWatts>0 && s.avgHR>0}).map(function(s){return {dateMs: s.dateMs, ef: s.avgWatts / s.avgHR}});
-  var effPts  = efSessions.map(function(s){return{x:s.dateMs,y:+(s.ef).toFixed(3)}});
-  var roll28  = effPts.map(function(pt){
-    var cutoff=pt.x-28*864e5;
-    var win=effPts.filter(function(p){return p.x>=cutoff&&p.x<=pt.x});
-    return{x:pt.x,y:+(win.reduce(function(a,b){return a+b.y},0)/win.length).toFixed(3)};
-  });
-
-  new Chart(document.getElementById('effCanvas'),{
-    type:'scatter',
-    data:{datasets:[
-      {type:'scatter',data:effPts,backgroundColor:'rgba(37,99,235,.2)',pointRadius:3,pointHoverRadius:5},
-      {type:'line',data:roll28,borderColor:'#2563eb',borderWidth:2,pointRadius:0,fill:false,tension:.35}
-    ]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
-      scales:{
-        x:{
-          type:'linear', 
-          min: minChartAxis, 
-          max: maxChartAxis, 
-          grid:{display: false},
-          ticks:{
-            callback:function(v){var d=new Date(v);return d.toLocaleDateString('en-GB',{day:'numeric',month:'short'})},
-            maxTicksLimit:5,
-            font:{size:9},
-            color:'#9ca3af'
-          }
-        },
-        y:{ticks:{callback:function(v){return v.toFixed(2)},font:{size:9},color:'#9ca3af'},grid:{color:'#f3f4f6'}}
-      }}
-  });
-
+  // Weekly Load Chart
   var weekMap={};
   sessions.forEach(function(s){
     var mon=getMondayMs(s.dateMs);
-    if(mon >= minChartAxis) {
-      if(!weekMap[mon]) weekMap[mon]={ms: mon + (3.5 * 864e5), mins:0, kj:0}; 
-      weekMap[mon].mins+=s.durationMins||0;
-      weekMap[mon].kj+=s.workKJ||0;
-    }
+    if(!weekMap[mon])weekMap[mon]={ms:mon,mins:0,kj:0};
+    weekMap[mon].mins+=s.durationMins||0;
+    weekMap[mon].kj+=s.workKJ||0;
   });
-  var weeks=Object.values(weekMap).sort(function(a,b){return a.ms-b.ms});
+  var weeks=Object.values(weekMap).sort(function(a,b){return a.ms-b.ms}).slice(-26);
   
   new Chart(document.getElementById('volCanvas'),{
     type:'bar',
     data:{
+      labels:weeks.map(function(w){var d=new Date(w.ms);return d.getDate()+' '+['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()]}),
       datasets:[
         {
           label: 'Duration (hrs)',
-          data: weeks.map(function(w){return {x: w.ms, y: +(w.mins / 60).toFixed(1)}}),
+          data: weeks.map(function(w){return +(w.mins / 60).toFixed(1)}),
           backgroundColor: 'rgba(37,99,235,.2)',
           type: 'bar',
-          barThickness: 16, 
           borderRadius: 3,
           yAxisID: 'y'
         },
         {
           label: 'Work (kJ)',
-          data: weeks.map(function(w){return {x: w.ms, y: Math.round(w.kj)}}),
+          data: weeks.map(function(w){return Math.round(w.kj)}),
           type: 'line',
           borderColor: '#8b5cf6',
           borderWidth: 2,
@@ -352,27 +312,14 @@ function renderAnalytics(result) {
       interaction: { mode: 'index', intersect: false },
       plugins:{ legend:{display:false} },
       scales:{
-        x:{
-          type: 'linear', 
-          min: minChartAxis,      
-          max: maxChartAxis,       
-          grid: { display: false },
-          ticks: {
-            callback: function(v){
-              var d = new Date(v);
-              return d.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
-            },
-            maxTicksLimit: 5, 
-            font: { size: 9 },
-            color: '#9ca3af'
-          }
-        },
+        x:{grid:{display:false},ticks:{font:{size:8},color:'#9ca3af',maxRotation:45,maxTicksLimit:10}},
         y:{type:'linear',display:true,position:'left',beginAtZero:true,grid:{color:'#f3f4f6'},ticks:{font:{size:9},color:'#9ca3af'}},
         y1:{type:'linear',display:true,position:'right',beginAtZero:true,grid:{drawOnChartArea:false},ticks:{font:{size:9},color:'#8b5cf6'}}
       }
     }
   });
 
+  // Monthly Load & Power Data Processing
   var monthMap = {};
   var todayMonth = new Date(now);
   todayMonth.setDate(1); 
@@ -401,6 +348,7 @@ function renderAnalytics(result) {
 
   var months = Object.values(monthMap).sort(function(a,b) { return a.ms - b.ms; });
 
+  // Monthly Load Chart
   new Chart(document.getElementById('monthlyCanvas'),{
     type:'bar',
     data:{
@@ -438,6 +386,7 @@ function renderAnalytics(result) {
     }
   });
 
+  // Monthly Average Power Trend
   new Chart(document.getElementById('monthlyPwrCanvas'),{
     type:'line',
     data:{
@@ -554,6 +503,7 @@ function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').repl
 var _tt;
 function showToast(msg,isError){
   var t=document.getElementById('toast');
+  if(!t) return;
   t.textContent=msg; t.className='toast'+(isError?' error':'');
   void t.offsetWidth; t.classList.add('show');
   clearTimeout(_tt); _tt=setTimeout(function(){t.classList.remove('show')},2500);

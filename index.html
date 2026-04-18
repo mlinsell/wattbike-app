@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Training Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+
+<?!= include('Styles'); ?>
+
+</head>
+<body>
+
+<div id="loadingScreen" class="state">
+  <div class="dots"><span></span><span></span><span></span></div>
+  <div class="state-title">Loading Workout</div>
+  <div class="state-msg">Fetching today's training plan…</div>
+</div>
+
+<div id="errorScreen" class="state" style="display:none">
+  <div style="font-size:40px">🚴</div>
+  <div class="state-title" id="errorTitle">No Workout Found</div>
+  <div class="state-msg" id="errorMsg">No workout is planned for today.</div>
+</div>
+
+<div id="appShell" style="display:none;flex-direction:column;height:100dvh;">
+
+  <div class="tab-bar">
+    <button class="tab-btn active" id="tab1" onclick="switchPage(1)">Today</button>
+    <button class="tab-btn"        id="tab2" onclick="switchPage(2)">Coming Up</button>
+    <button class="tab-btn"        id="tab3" onclick="switchPage(3)">Analysis</button>
+  </div>
+
+  <div class="pages-wrap">
+    <div class="pages-slider p1" id="slider">
+
+      <div class="page">
+        <div class="hdr">
+          <div><div class="hdr-day" id="dayName">—</div><div class="hdr-date" id="dateDisplay">——/——/————</div></div>
+          <div class="badge">Today</div>
+        </div>
+        <div class="fields">
+          <div class="fg">
+            <div class="flbl">Goal</div>
+            <input class="finput goal-f" id="goalInput" type="text" placeholder="Today's training goal…">
+          </div>
+          <div class="two-col">
+            <div class="fg"><div class="flbl">Duration</div><input class="finput" id="durationInput" type="text" placeholder="e.g. 90 min"></div>
+            <div class="fg"><div class="flbl">HR Cap</div><input class="finput" id="hrCapInput" type="text" placeholder="e.g. &lt;145"></div>
+          </div>
+          <div class="fg grow">
+            <div class="flbl">Intensity Target</div>
+            <textarea class="finput" id="intensityInput" placeholder="Describe the intensity structure…"></textarea>
+          </div>
+        </div>
+        <div class="div-line"></div>
+        <div class="metrics">
+          <div class="mbox"><div class="mval w" id="mWatts"><span class="mval empty">—</span></div><div class="mlbl">Avg Watts</div><div class="mauto">auto</div></div>
+          <div class="mbox"><div class="mval h" id="mHR"><span class="mval empty">—</span></div><div class="mlbl">Avg HR</div><div class="mauto">auto</div></div>
+          <div class="mbox"><div class="mval r" id="mRPM"><span class="mval empty">—</span></div><div class="mlbl">Avg RPM</div><div class="mauto">auto</div></div>
+          <div class="mbox"><div class="mval k" id="mKJ"><span class="mval empty">—</span></div><div class="mlbl">Work Done</div><div class="mauto">kJ</div></div>
+        </div>
+        <div class="notes">
+          <div class="flbl" style="margin-bottom:3px">Post-Ride Notes</div>
+          <textarea class="nbox" id="notesInput" placeholder="Optional — how did it feel?"></textarea>
+        </div>
+        <div class="footer">
+          <button class="save-btn" id="saveBtn" onclick="saveWorkout()">Save Changes</button>
+        </div>
+      </div>
+
+      <div class="page">
+        <div class="hdr">
+          <div><div class="hdr-day">Next 5 Days</div><div class="hdr-sub">Upcoming rides</div></div>
+        </div>
+        <div class="up-scroll" id="upcomingList">
+          <div class="no-data">Loading…</div>
+        </div>
+      </div>
+
+      <div class="page">
+        <div class="hdr">
+          <div><div class="hdr-day">Analysis</div><div class="hdr-sub" id="analysisRange">Loading…</div></div>
+          <div class="badge" id="rideCount">— rides</div>
+        </div>
+        <div class="analysis-scroll" id="analysisContent">
+          <div class="no-data">Loading session data…</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<?!= include('JavaScript'); ?>
+
+</body>
+</html>
